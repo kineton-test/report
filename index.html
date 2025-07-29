@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Grafico MultiFiltro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 1200px;
+      margin: 50px auto;
+    }
+    canvas {
+      margin-top: 40px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      table-layout: auto;
+      overflow-x: auto;
+      display: block;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    .chart-description {
+      margin-top: 50px;
+    }
+    .center-text {
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .roaming-table th,
+    .roaming-table td {
+      font-size: 11px;
+      padding: 4px 6px;
+      text-align: center;
+      border: 1px solid #ccc;
+      white-space: normal;
+      word-break: break-word;
+      max-width: 90px;
+    }
+
+    .roaming-table-wrapper {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .roaming-table th {
+      background-color: #f4f4f4;
+    }
+
+    .hidden-upload {
+      display: none;
+    }
+
+    .admin-area {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Filtra per Dispositivo, Gruppo e Stato</h2>
+
+<label for="deviceSelect">Dispositivo:</label>
+<select id="deviceSelect">
+  <option value="Hub6">Hub6 Versione 8.1p2s3</option>
+  <option value="SuperPod">SuperPod versione 4.4.3.3</option>
+</select>
+
+<label for="gruppoSelect">Gruppo:</label>
+<select id="gruppoSelect">
+  <option value="P1">P1</option>
+  <option value="P2">P2</option>
+  <option value="P3">P3</option>
+</select>
+
+<label for="statoSelect">Stato:</label>
+<select id="statoSelect">
+  <option value="Passed">Passed</option>
+  <option value="Failed">Failed</option>
+  <option value="ToBeStart">To Be Start</option>
+</select>
+
+<br><br>
+
+<!-- Accesso Admin -->
+<label for="adminPassword" id="adminLabel">Admin:</label>
+<input type="password" id="adminPassword" placeholder="Password admin" />
+
+<!-- Area nascosta per admin -->
+<div class="admin-area">
+  <input type="file" id="uploadExcelThroughput" accept=".xlsx,.xls" />
+  <input type="file" id="uploadExcelRoaming" accept=".xlsx,.xls" />
+</div>
+
+<!-- Grafico -->
+<canvas id="grafico"></canvas>
+
+<!-- Tabella Throughput -->
+<div class="chart-description">
+  <h3>Throughput</h3>
+  <table class="throughput-table">
+    <thead>
+      <tr>
+        <th>Test</th><th>Device Setup</th><th>WiFi Device</th><th>Metri</th><th>Type</th>
+        <th>2.4GHz Down</th><th>2.4GHz Up</th><th>5GHz Down</th><th>5GHz Up</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- Tabella Roaming -->
+<div class="chart-description" id="roaming-section"></div>
+
+<script>
+const ctx = document.getElementById('grafico').getContext('2d');
+
+const categorie = ['Totale Test', 'IoT', 'Network Devices', 'VPN', 'STB-Sky + OTT Services','POS Payment','File Sharing','Media Entertainment','VoIP - Messaging','Gaming'];
+
+const dati = {
+  Hub6: {
+    P1: { Passed: [19, 81.82, 0, 82.28, 0, 100, 0, 0, 0, 0], Failed: [19, 6.29, 0, 7.59, 0, 0, 0, 0, 0, 0], ToBeStart: Array(10).fill(0) },
+    P2: { Passed: Array(10).fill(0), Failed: Array(10).fill(0), ToBeStart: Array(10).fill(0) },
+    P3: { Passed: Array(10).fill(0), Failed: Array(10).fill(0), ToBeStart: Array(10).fill(0) }
+  },
+  SuperPod: {
+    P1: { Passed: Array(10).fill(0), Failed: Array(10).fill(0), ToBeStart: Array(10).fill(0) },
+    P2: { Passed: Array(10).fill(0), Failed: Array(10).fill(0), ToBeStart: Array(10).fill(0) },
+    P3: { Passed: Array(10).fill(0), Failed: Array(10).fill(0), ToBeStart: Array(10).fill(0) }
+  }
+};
+
+const colori = { Passed: '#4CAF50', Failed: '#F44336', ToBeStart: '#FFC107' };
+
+let chart = new Chart(ctx, {
+  type: 'bar',
+  data: { labels: categorie, datasets: [] },
+  options: {
+    responsive: true,
+    plugins: {
+      datalabels: {
+        anchor: 'center',
+        align: 'top',
+        color: '#000',
+        font: { weight: 'bold', size: 12 },
+        formatter: value => value + '%'
+      },
+      legend: { position: 'top' },
+      tooltip: { enabled: true }
+    },
+    scales: {
+      y: { beginAtZero: true, max: 100, ticks: { stepSize: 10 } }
+    }
+  },
+  plugins: [ChartDataLabels]
+});
+
+function aggiornaGrafico() {
+  const d = document.getElementById('deviceSelect').value;
+  const g = document.getElementById('gruppoSelect').value;
+  const s = document.getElementById('statoSelect').value;
+  chart.data.datasets = [{
+    label: `${d} - ${g} (${s})`,
+    data: dati[d][g][s],
+    backgroundColor: colori[s]
+  }];
+  chart.update();
+}
+
+['deviceSelect', 'gruppoSelect', 'statoSelect'].forEach(id => {
+  document.getElementById(id).addEventListener('change', aggiornaGrafico);
+});
+aggiornaGrafico();
+
+// Accesso admin
+document.getElementById('adminPassword').addEventListener('change', function () {
+  if (this.value === 'admin') {
+    document.querySelector('.admin-area').style.display = 'block';
+    this.style.display = 'none';
+    document.getElementById('adminLabel').style.display = 'none';
+    alert('Accesso admin riuscito. Ora puoi caricare i file Excel.');
+  } else {
+    alert('Password errata.');
+  }
+});
+
+// Caricamento Excel generico
+function caricaExcel(inputId, tableSelector) {
+  const input = document.getElementById(inputId);
+  input.addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      const tbody = document.querySelector(tableSelector);
+      tbody.innerHTML = '';
+      const maxCols = Math.max(...rows.map(r => r.length));
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        for (let i = 0; i < maxCols; i++) {
+          const td = document.createElement('td');
+          td.textContent = (row[i] !== undefined && row[i] !== null && row[i] !== '') ? row[i] : '';
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      });
+      input.style.display = 'none';
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+caricaExcel('uploadExcelThroughput', '.throughput-table tbody');
+
+// Roaming Table
+document.getElementById('uploadExcelRoaming').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const container = document.getElementById('roaming-section');
+    container.innerHTML = '';
+
+    const splitIndex = rows.findIndex(r => r.every(cell => cell === undefined || cell === null || cell === ''));
+    const firstPart = rows.slice(0, splitIndex);
+    const secondPart = rows.slice(splitIndex + 1);
+
+    const createTable = (data) => {
+      const table = document.createElement('table');
+      table.className = 'roaming-table';
+      const thead = document.createElement('thead');
+      const tbody = document.createElement('tbody');
+      const maxCols = Math.max(...data.map(row => row.length));
+
+      const headerRow = document.createElement('tr');
+      for (let i = 0; i < maxCols; i++) {
+        const th = document.createElement('th');
+        th.textContent = data[0][i] || '';
+        headerRow.appendChild(th);
+      }
+      thead.appendChild(headerRow);
+
+      for (let i = 1; i < data.length; i++) {
+        const tr = document.createElement('tr');
+        for (let j = 0; j < maxCols; j++) {
+          const td = document.createElement('td');
+          const value = data[i][j];
+          td.textContent = value !== undefined && value !== null ? value : '';
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
+    };
+
+    container.appendChild(document.createElement('h3')).textContent = 'Roaming Test';
+
+    const info = document.createElement('div');
+    info.innerHTML = `<strong>Hub6 8.1p2s3 / SuperPod 4.4.3.3</strong><br>`;
+    container.appendChild(info);
+
+    const nota1 = document.createElement('div');
+    nota1.className = 'center-text';
+    nota1.style.margin = '15px 0';
+    nota1.style.padding = '10px';
+    nota1.style.background = '#e0f7fa';
+    nota1.style.borderLeft = '4px solid #00796B';
+    nota1.textContent = '(No dedicated Backhaul (44) / Fronthaul (44))';
+    container.appendChild(nota1);
+
+    container.appendChild(createTable(firstPart));
+
+    const nota2 = document.createElement('div');
+    nota2.className = 'center-text';
+    nota2.style.margin = '15px 0';
+    nota2.style.padding = '10px';
+    nota2.style.background = '#f0f8ff';
+    nota2.style.borderLeft = '4px solid #2196F3';
+    nota2.textContent = 'Dedicated Backhaul(100)/Fronthaul (52)';
+    container.appendChild(nota2);
+
+    container.appendChild(createTable(secondPart));
+
+    document.getElementById('uploadExcelRoaming').style.display = 'none';
+  };
+  reader.readAsArrayBuffer(file);
+});
+</script>
+
+</body>
+</html>
+
+
+
+
+
+  
